@@ -7,6 +7,7 @@ replace github.com/fenthope/tsukasa-push => /data/github/satomitoka/tsukasapush
 require (
 	github.com/fenthope/tsukasa-push v0.0.0-00010101000000-000000000000
 	go.etcd.io/bbolt v1.5.0
+	golang.org/x/sys v0.49.0
 )
 
 require (
@@ -18,7 +19,6 @@ require (
 	github.com/infinite-iroha/touka v1.1.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
