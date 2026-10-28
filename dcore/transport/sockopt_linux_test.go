@@ -44,7 +44,9 @@ func tcpFDs(t *testing.T) (int, int) {
 
 func rawFD(t *testing.T, c net.Conn) int {
 	t.Helper()
-	rc, err := c.(interface{ SyscallConn() (syscall.RawConn, error) }).SyscallConn()
+	rc, err := c.(interface {
+		SyscallConn() (syscall.RawConn, error)
+	}).SyscallConn()
 	if err != nil {
 		t.Fatalf("syscallconn: %v", err)
 	}
