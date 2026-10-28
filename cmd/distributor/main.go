@@ -62,8 +62,8 @@ func main() {
 	}
 	dist := dcore.NewDistributor(client, reg, logAdapter{logger}, dcore.Options{
 		Logger: logger,
-		OnGone: func(token string) {
-			logger.Warn("endpoint gone, application must re-register", "token", token)
+		OnGone: func(reg dcore.Registration) {
+			logger.Warn("endpoint gone, application must re-register", "token", reg.ConnectionToken)
 		},
 	})
 

@@ -23,10 +23,10 @@ type Options struct {
 	// Logger receives lifecycle events; defaults to slog.Default.
 	Logger *slog.Logger
 	// OnGone is called when the push server reports a subscription is
-	// gone (expired or removed). The registration is already dropped from
-	// the registry; the adapter should ask the app to re-register
-	// (UnifiedPush ENDPOINT_RENEWAL / REGISTRATION_FAILED).
-	OnGone func(connectionToken string)
+	// gone (expired or removed). The registration has already been
+	// dropped from the registry; the adapter should inform the app so it
+	// can re-register (UnifiedPush Unregistered / ENDPOINT_RENEWAL).
+	OnGone func(reg Registration)
 	// DeliverRetryDelay bounds the backoff between failed deliveries.
 	DeliverRetryDelay time.Duration
 }
@@ -183,9 +183,13 @@ func (d *Distributor) loop(ctx context.Context, token string) {
 			}
 			if errors.Is(err, ErrSubscriptionGone) {
 				d.opts.Logger.Info("subscription gone, dropping", "token", token)
+				var gone Registration
+				if cur := d.reg.Get(token); cur != nil {
+					gone = *cur
+				}
 				_ = d.reg.Remove(token)
 				if d.opts.OnGone != nil {
-					d.opts.OnGone(token)
+					d.opts.OnGone(gone)
 				}
 				return
 			}
