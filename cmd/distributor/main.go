@@ -71,7 +71,7 @@ func main() {
 	defer stop()
 
 	if *register != "" {
-		endpoint, err := dist.Register(ctx, *register, *label, "")
+		endpoint, err := dist.Register(ctx, *register, *register, *label, "")
 		if err != nil {
 			log.Fatalf("distributor: register: %v", err)
 		}

@@ -3,6 +3,7 @@ package dcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"sync"
@@ -61,12 +62,18 @@ func NewDistributor(client *Client, registry *Registry, disp Dispatcher, opts Op
 }
 
 // Register creates a push subscription for a connection token and returns
-// the endpoint the app must hand to its application server.
-func (d *Distributor) Register(ctx context.Context, connectionToken, label, restrictedKey string) (string, error) {
+// the endpoint the app must hand to its application server. The
+// application identity (D-Bus name, Android package) is persisted with the
+// registration; re-registering the same token from a different application
+// is refused.
+func (d *Distributor) Register(ctx context.Context, connectionToken, application, label, restrictedKey string) (string, error) {
 	if connectionToken == "" {
 		return "", errors.New("dcore: empty connection token")
 	}
 	if existing := d.reg.Get(connectionToken); existing != nil {
+		if existing.Application != application {
+			return "", fmt.Errorf("dcore: connection token already registered by %q", existing.Application)
+		}
 		return existing.PushURI, nil
 	}
 	web, err := d.client.Subscribe(ctx, restrictedKey)
@@ -75,6 +82,7 @@ func (d *Distributor) Register(ctx context.Context, connectionToken, label, rest
 	}
 	reg := &Registration{
 		ConnectionToken: connectionToken,
+		Application:     application,
 		Label:           label,
 		WebSubscription: *web,
 		CreatedAt:       time.Now(),

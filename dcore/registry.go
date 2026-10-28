@@ -15,6 +15,10 @@ type Registration struct {
 	// ConnectionToken identifies the app's registration with the
 	// distributor (UnifiedPush spec). Every delivery carries it.
 	ConnectionToken string `json:"connection_token"`
+	// Application is the platform identity of the end user application:
+	// the D-Bus bus name on Linux, the package name on Android. The
+	// adapter uses it to address the connector.
+	Application string `json:"application,omitempty"`
 	// Label is a short description of the registration the distributor
 	// may show to the user.
 	Label string `json:"label,omitempty"`

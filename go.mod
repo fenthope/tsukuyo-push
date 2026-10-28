@@ -18,6 +18,7 @@ require (
 	github.com/WJQSERVER-STUDIO/httpc v0.10.0 // indirect
 	github.com/WJQSERVER/wanf v0.0.10 // indirect
 	github.com/fenthope/reco v0.0.6 // indirect
+	github.com/godbus/dbus/v5 v5.2.4 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

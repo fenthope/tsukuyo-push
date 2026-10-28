@@ -127,7 +127,7 @@ func TestUnifiedPushFlow(t *testing.T) {
 	go dist.Run(ctx)
 
 	// Registration hands the endpoint to the app.
-	endpoint, err := dist.Register(ctx, "tok-1", "test app", "")
+	endpoint, err := dist.Register(ctx, "tok-1", "org.example.app", "test app", "")
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestRegistryRebuildAfterRestart(t *testing.T) {
 	dist := newDist()
 	runCtx, stop := context.WithCancel(ctx)
 	go dist.Run(runCtx)
-	endpoint, err := dist.Register(ctx, "tok-2", "app", "")
+	endpoint, err := dist.Register(ctx, "tok-2", "org.example.app", "app", "")
 	if err != nil {
 		t.Fatal(err)
 	}
