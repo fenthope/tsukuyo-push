@@ -1,4 +1,7 @@
 *.exe
+/server
+/distributor
+/distributor-linux
 /data/
 *.db
 *.test
