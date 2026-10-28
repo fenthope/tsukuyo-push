@@ -1,0 +1,5 @@
+*.exe
+/data/
+*.db
+*.test
+coverage.out
