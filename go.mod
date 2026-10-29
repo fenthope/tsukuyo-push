@@ -2,11 +2,9 @@ module github.com/satomitoka/tsukuyo-push
 
 go 1.27
 
-replace github.com/fenthope/tsukasa-push => /data/github/satomitoka/tsukasapush
-
 require (
 	github.com/fenthope/ikumi v0.1.0
-	github.com/fenthope/tsukasa-push v0.0.0-00010101000000-000000000000
+	github.com/fenthope/tsukasa-push v0.0.3
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/infinite-iroha/touka v1.1.1
 	go.etcd.io/bbolt v1.5.0

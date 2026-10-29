@@ -10,7 +10,8 @@ A 应用后端 ──upush/sender──▶ S 推送服务器 ══ h2c/TLS,1×T
 ```
 
 加解密端到端由 C 的连接器完成；S 与 D 只搬运 RFC 8291 密文。
-依赖 `github.com/fenthope/tsukasa-push`（本地 replace，取舍见
+依赖发布版 `github.com/fenthope/tsukasa-push` v0.0.3：S 端直接用其
+`service`/`pushmsg`，D 端不依赖 `receiver`（原因与回馈清单见
 [docs/upstream-gap.md](docs/upstream-gap.md)）。
 
 ## 组件
