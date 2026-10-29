@@ -21,6 +21,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/fenthope/tsukasa-push/pushmsg"
+
 	"github.com/satomitoka/tsukuyo-push/dcore/transport"
 )
 
@@ -88,7 +90,7 @@ func (c *Client) Subscribe(ctx context.Context, restrictedKeyB64 string) (*WebSu
 		return nil, err
 	}
 	if body != nil {
-		req.Header.Set("Content-Type", "application/unifiedpush-options+json")
+		req.Header.Set("Content-Type", pushmsg.OptionsMediaType)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {

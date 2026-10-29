@@ -49,5 +49,5 @@ session bus 上调用 `org.unifiedpush.Distributor2.Register` 即可完成注册
 - `internal/boltstore`：与 `service.MemoryStore` 的语义对齐套件 + 重启持久性。
 - `internal/h2srv`：32 并发 h2 请求共享 1 条 TCP 的复用断言。
 - `dcore/transport`：sockopt getsockopt 白盒断言（Linux）。
-- `test/integration`：S+D 全链路（真加密、投递失败重试、掉线清理、分发器重启续投）。
+- `test/integration`：S+D 全链路（真加密、投递失败重试、掉线清理、分发器重启续投、受限订阅只允许匹配的 VAPID 推送）。
 - `adapters/dbus`：dbus-run-session 下真总线端到端（注册/密文投递/注销/拒绝）。
