@@ -63,9 +63,6 @@ func TestSetSocketOptions(t *testing.T) {
 		NoDelay:     &nodelay,
 		RecvBuf:     64 << 10,
 		SendBuf:     64 << 10,
-		Idle:        15 * time.Second,
-		Intvl:       5 * time.Second,
-		Cnt:         4,
 		UserTimeout: 25 * time.Second,
 	}
 	if err := setSocketOptions(fd1, o); err != nil {
@@ -77,11 +74,10 @@ func TestSetSocketOptions(t *testing.T) {
 	if v, err := unix.GetsockoptInt(fd1, unix.IPPROTO_TCP, unix.TCP_USER_TIMEOUT); err != nil || v != 25000 {
 		t.Fatalf("TCP_USER_TIMEOUT = %d, %v", v, err)
 	}
-	if v, err := unix.GetsockoptInt(fd1, unix.IPPROTO_TCP, unix.TCP_KEEPIDLE); err != nil || v != 15 {
-		t.Fatalf("TCP_KEEPIDLE = %d, %v", v, err)
-	}
-	if v, err := unix.GetsockoptInt(fd1, unix.IPPROTO_TCP, unix.TCP_KEEPCNT); err != nil || v != 4 {
-		t.Fatalf("TCP_KEEPCNT = %d, %v", v, err)
+	// Keepalive timing is deliberately not asserted here: it is applied by
+	// net.Dialer after this hook, so only the dial path test can see it.
+	if v, err := unix.GetsockoptInt(fd1, unix.IPPROTO_TCP, unix.TCP_NODELAY); err != nil || v != 0 {
+		t.Fatalf("TCP_NODELAY = %d, %v (want 0 when disabled)", v, err)
 	}
 }
 

@@ -23,14 +23,18 @@ import (
 // the defaults noted on each field.
 type Options struct {
 	// Socket tuning.
-	RecvBuf int           // SO_RCVBUF
-	SendBuf int           // SO_SNDBUF
-	NoDelay *bool         // TCP_NODELAY; nil means true
-	TTL     uint8         // IP_TTL; 0 keeps the default
-	Tos     int           // IP_TOS; 0 keeps the default
-	Idle    time.Duration // TCP_KEEPIDLE
-	Intvl   time.Duration // TCP_KEEPINTVL
-	Cnt     int           // TCP_KEEPCNT
+	RecvBuf int   // SO_RCVBUF
+	SendBuf int   // SO_SNDBUF
+	NoDelay *bool // TCP_NODELAY; nil means true
+	TTL     uint8 // IP_TTL; 0 keeps the default
+	Tos     int   // IP_TOS; 0 keeps the default
+	// Keepalive timing goes through net.Dialer.KeepAliveConfig, so it works
+	// on every platform the standard library supports. Setting any of them
+	// enables probes; with all three unset the dialer's 30s idle applies
+	// with the OS defaults for the interval and the count.
+	Idle  time.Duration // TCP_KEEPIDLE
+	Intvl time.Duration // TCP_KEEPINTVL
+	Cnt   int           // TCP_KEEPCNT
 	// UserTimeout fails a connection whose data stays unacknowledged
 	// (half-open peer) after this long; TCP_USER_TIMEOUT on Linux.
 	UserTimeout time.Duration
@@ -158,6 +162,17 @@ func (o Options) baseDialer() (func(ctx context.Context, network, addr string) (
 	d := &net.Dialer{
 		Timeout:   10 * time.Second,
 		KeepAlive: 30 * time.Second,
+	}
+	if o.Idle > 0 || o.Intvl > 0 || o.Cnt > 0 {
+		// The dialer applies keepalive after Control runs, so writing
+		// TCP_KEEP{IDLE,INTVL,CNT} from Control gets overwritten. Hand the
+		// tuning to the dialer instead; zero fields keep its defaults.
+		d.KeepAliveConfig = net.KeepAliveConfig{
+			Enable:   true,
+			Idle:     orDuration(o.Idle, 30*time.Second),
+			Interval: o.Intvl,
+			Count:    o.Cnt,
+		}
 	}
 	opts := o
 	d.Control = func(_, _ string, rc syscall.RawConn) error {
