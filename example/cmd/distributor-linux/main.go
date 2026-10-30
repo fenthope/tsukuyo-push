@@ -1,8 +1,5 @@
-//go:build dbus
-
 // Command distributor-linux runs the Linux distributor: the dcore push
-// client plus the UnifiedPush D-Bus adapter on the session bus. Build
-// with: go build -tags dbus ./cmd/distributor-linux
+// client plus the UnifiedPush D-Bus adapter on the session bus.
 package main
 
 import (
@@ -19,9 +16,9 @@ import (
 
 	"github.com/godbus/dbus/v5"
 
-	"github.com/satomitoka/tsukuyo-push/adapters/dbus"
 	"github.com/satomitoka/tsukuyo-push/dcore"
 	"github.com/satomitoka/tsukuyo-push/dcore/transport"
+	"github.com/satomitoka/tsukuyo-push/platform/dbus"
 )
 
 func main() {

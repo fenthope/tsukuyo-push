@@ -1,12 +1,10 @@
-//go:build dbus
-
 // Package dbusadapter implements the UnifiedPush D-Bus distributor API
 // (spec DBUS_0.3.0): it serves org.unifiedpush.Distributor2 on the
 // session bus, drives a dcore.Distributor, and calls back into
 // org.unifiedpush.Connector2 on the applications' bus names.
 //
-// The package is gated behind the "dbus" build tag so the core stays
-// free of the godbus dependency; build with -tags dbus.
+// It is its own module so that godbus stays out of the core library's
+// dependency graph; depending on this package is the opt-in.
 package dbusadapter
 
 import (

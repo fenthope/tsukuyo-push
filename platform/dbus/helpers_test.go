@@ -1,5 +1,3 @@
-//go:build dbus
-
 package dbusadapter
 
 import (

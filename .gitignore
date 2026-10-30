@@ -2,7 +2,11 @@
 /server
 /distributor
 /distributor-linux
+/example/server
+/example/distributor
+/example/distributor-linux
 /data/
 *.db
 *.test
 coverage.out
+go.work.sum

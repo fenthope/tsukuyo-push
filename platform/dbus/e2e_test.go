@@ -1,5 +1,3 @@
-//go:build dbus
-
 package dbusadapter_test
 
 import (
@@ -23,9 +21,9 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/infinite-iroha/touka"
 
-	dbusadapter "github.com/satomitoka/tsukuyo-push/adapters/dbus"
 	"github.com/satomitoka/tsukuyo-push/dcore"
 	"github.com/satomitoka/tsukuyo-push/h2srv"
+	dbusadapter "github.com/satomitoka/tsukuyo-push/platform/dbus"
 )
 
 // TestMain re-executes under dbus-run-session when no session bus exists,
@@ -115,7 +113,7 @@ func silent() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil
 func TestDistributorDBusFlow(t *testing.T) {
 	conn, err := dbus.SessionBus()
 	if err != nil {
-		t.Fatalf("session bus: %v", err)
+		t.Skipf("no D-Bus session bus (%v); run under dbus-run-session", err)
 	}
 	base := startPushServer(t)
 

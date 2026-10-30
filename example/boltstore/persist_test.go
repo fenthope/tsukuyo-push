@@ -10,7 +10,7 @@ import (
 	"github.com/fenthope/tsukasa-push/pushmsg"
 	"github.com/fenthope/tsukasa-push/service"
 
-	"github.com/satomitoka/tsukuyo-push/internal/boltstore"
+	"github.com/satomitoka/tsukuyo-push/example/boltstore"
 )
 
 func TestPersistenceAcrossReopen(t *testing.T) {
