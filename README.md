@@ -57,6 +57,20 @@ go test ./...                      # 库模块（根目录；./... 不跨模块�
 session bus 上调用 `org.unifiedpush.Distributor2.Register` 即可完成注册
 （e2e 测试展示了完整流程，含注册劫持拒绝与规范错误原因映射）。
 
+## 可调参数
+
+默认值都写在字段的 godoc 里，这里只给地图（按会碰到的频率排序）：
+
+- **D 端 `dcore.Options`**：`PollRetryDelay` / `MaxPollRetryDelay`（1s / 60s，指数退避带抖动；常换网络的设备可调小上限）、`DeliverRetryDelay`（2s）、`OnChanged` / `OnGone` / `Logger`。传输层从 `dcore.WithTransportOptions` 进去，实际落到 socket 的取值见 `dcore/transport.Options` 的注释（`TCP_NODELAY` 显式下发，keepalive 走 `net.Dialer.KeepAliveConfig`，`Proxy` 故意为 nil 即不读 `HTTPS_PROXY`）。
+- **S 端 `h2srv.Options` 与 `cmd/server` flags**：`-max-streams`(512)、`-stream-window`(256KiB)、`-conn-window`(8MiB)、`-idle-timeout`(30s)、`-ping-timeout`(15s)、`-listen-recv-buf` / `-listen-send-buf`(4MiB，填 0 交给内核自动调优)、`-sweep-interval`(1m)、`-shutdown-timeout`(10s)。
+
+两条经验规则：
+
+1. 发现死连接要等 `-idle-timeout` + `-ping-timeout`，想让掉线快于 NAT 生命周期，调这两个。
+2. `-max-streams` 必须大于最大分发器的常驻订阅数加上其 ack/注册请求的余量；不够时轮询流会被 REFUSED 后重建，表现为投递延迟毛刺而非失败。
+
+每个订阅的常驻成本是实测值：`go test -run '^$' -bench Scale ./dcore/`，约 3.6 KiB 堆 + 1 个轮询 goroutine，其中注册记录本身只占 261 B。
+
 ## 测试
 
 - `example/boltstore`：与 `service.MemoryStore` 的语义对齐套件 + 重启持久性。

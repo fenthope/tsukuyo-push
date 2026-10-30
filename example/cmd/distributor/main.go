@@ -38,11 +38,14 @@ func (a logAdapter) Deliver(ctx context.Context, token string, body []byte) erro
 
 func main() {
 	var (
-		url      = flag.String("url", "http://127.0.0.1:8443", "push server URL")
-		registry = flag.String("registry", "registry.json", "registry file path")
-		insecure = flag.Bool("fp", false, "skip TLS certificate verification (testing only)")
-		register = flag.String("register", "", "connection token to register at startup, empty to resume existing only")
-		label    = flag.String("label", "", "label for the startup registration")
+		url          = flag.String("url", "http://127.0.0.1:8443", "push server URL")
+		registry     = flag.String("registry", "registry.json", "registry file path")
+		insecure     = flag.Bool("fp", false, "skip TLS certificate verification (testing only)")
+		register     = flag.String("register", "", "connection token to register at startup, empty to resume existing only")
+		label        = flag.String("label", "", "label for the startup registration")
+		pollRetry    = flag.Duration("poll-retry-delay", 0, "first pause before retrying a failed poll (default 1s)")
+		maxPoll      = flag.Duration("max-poll-retry-delay", 0, "cap for the poll retry backoff (default 60s)")
+		deliverRetry = flag.Duration("deliver-retry-delay", 0, "pause before retrying a failed delivery (default 2s)")
 	)
 	flag.Parse()
 
@@ -63,8 +66,11 @@ func main() {
 		log.Fatalf("distributor: store: %v", err)
 	}
 	dist := dcore.NewDistributor(client, logAdapter{logger}, dcore.Options{
-		Logger:    logger,
-		OnChanged: store.Apply,
+		Logger:            logger,
+		OnChanged:         store.Apply,
+		PollRetryDelay:    *pollRetry,
+		MaxPollRetryDelay: *maxPoll,
+		DeliverRetryDelay: *deliverRetry,
 		OnGone: func(reg dcore.Registration) {
 			logger.Warn("endpoint gone, application must re-register", "token", reg.ConnectionToken)
 		},

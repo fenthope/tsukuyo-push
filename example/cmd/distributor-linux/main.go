@@ -23,10 +23,13 @@ import (
 
 func main() {
 	var (
-		url      = flag.String("url", "http://127.0.0.1:8443", "push server URL")
-		registry = flag.String("registry", "registry.json", "registry file path")
-		name     = flag.String("name", dbusadapter.DefaultName, "distributor name (bus name suffix)")
-		insecure = flag.Bool("fp", false, "skip TLS certificate verification (testing only)")
+		url          = flag.String("url", "http://127.0.0.1:8443", "push server URL")
+		registry     = flag.String("registry", "registry.json", "registry file path")
+		name         = flag.String("name", dbusadapter.DefaultName, "distributor name (bus name suffix)")
+		insecure     = flag.Bool("fp", false, "skip TLS certificate verification (testing only)")
+		pollRetry    = flag.Duration("poll-retry-delay", 0, "first pause before retrying a failed poll (default 1s)")
+		maxPoll      = flag.Duration("max-poll-retry-delay", 0, "cap for the poll retry backoff (default 60s)")
+		deliverRetry = flag.Duration("deliver-retry-delay", 0, "pause before retrying a failed delivery (default 2s)")
 	)
 	flag.Parse()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -57,9 +60,12 @@ func main() {
 		log.Fatalf("distributor-linux: adapter: %v", err)
 	}
 	dist := dcore.NewDistributor(client, dcore.DispatcherFunc(adapter.Deliver), dcore.Options{
-		Logger:    logger,
-		OnChanged: store.Apply,
-		OnGone:    adapter.NotifyGone,
+		Logger:            logger,
+		OnChanged:         store.Apply,
+		OnGone:            adapter.NotifyGone,
+		PollRetryDelay:    *pollRetry,
+		MaxPollRetryDelay: *maxPoll,
+		DeliverRetryDelay: *deliverRetry,
 	})
 	adapter.Attach(dist)
 	if err := adapter.Serve(); err != nil {
