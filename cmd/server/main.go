@@ -20,8 +20,8 @@ import (
 	"github.com/infinite-iroha/touka"
 	"golang.org/x/time/rate"
 
+	"github.com/satomitoka/tsukuyo-push/h2srv"
 	"github.com/satomitoka/tsukuyo-push/internal/boltstore"
-	"github.com/satomitoka/tsukuyo-push/internal/h2srv"
 )
 
 func main() {

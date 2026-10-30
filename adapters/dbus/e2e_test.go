@@ -25,8 +25,8 @@ import (
 
 	dbusadapter "github.com/satomitoka/tsukuyo-push/adapters/dbus"
 	"github.com/satomitoka/tsukuyo-push/dcore"
+	"github.com/satomitoka/tsukuyo-push/h2srv"
 	"github.com/satomitoka/tsukuyo-push/internal/boltstore"
-	"github.com/satomitoka/tsukuyo-push/internal/h2srv"
 )
 
 // TestMain re-executes under dbus-run-session when no session bus exists,

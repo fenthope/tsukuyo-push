@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/satomitoka/tsukuyo-push/dcore/transport"
-	"github.com/satomitoka/tsukuyo-push/internal/h2srv"
+	"github.com/satomitoka/tsukuyo-push/h2srv"
 )
 
 type countingListener struct {
