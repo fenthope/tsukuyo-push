@@ -7,6 +7,17 @@
 // below TLS, at the socket options, and continues with http.HTTP2Config
 // settings that were only reachable through x/net/http2 before Go 1.24
 // (idle ping probes, receive windows, HPACK table sizes).
+//
+// What Options{} actually does. The only socket option written
+// unconditionally is TCP_NODELAY. Keepalive runs with the dialer's 30s
+// idle and the OS probe interval and count until Idle, Intvl or Cnt is
+// set; TCP_USER_TIMEOUT, the buffer sizes, IP_TTL and IP_TOS stay off.
+// A half-open peer is therefore detected by the HTTP/2 idle PING (20s
+// without inbound frames, 10s for the pong), not by keepalive probes;
+// TCP_USER_TIMEOUT adds a second, transport-level bound on unacknowledged
+// data when the platform supports it. The underlying transport's Proxy is
+// left nil on purpose: this channel is point to point, so HTTPS_PROXY and
+// friends are deliberately ignored.
 package transport
 
 import (

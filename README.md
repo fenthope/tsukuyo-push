@@ -22,7 +22,7 @@ A 应用后端 ──upush/sender──▶ S 推送服务器 ══ h2c/TLS,1×T
 | `internal/boltstore` | `service.Store` 的 bbolt 实现；未 ack 消息重启后重投（至少一次） |
 | `internal/h2srv` | stdlib `http.HTTP2Config` 服务端调优 + h2c + 监听套接字调优 |
 | `dcore` | D 核心：订阅管理、轮询监督、JSON 注册表；只转发密文，不持密钥 |
-| `dcore/transport` | 单连接客户端：`MaxConnsPerHost=1` + Linux sockopt（NODELAY/KEEP*/USER_TIMEOUT）+ h2 空闲 PING |
+| `dcore/transport` | 单连接客户端：`MaxConnsPerHost=1` + 套接字调优（默认只下发 TCP_NODELAY，keepalive/USER_TIMEOUT/缓冲按需开启）+ h2 空闲 PING（半开检测主力，20s+10s） |
 | `adapters/dbus` | **可选**（`-tags dbus`）：UnifiedPush D-Bus 规范 DBUS_0.3.0 分发器 |
 | `cmd/distributor` | 参考分发器二进制（日志型 dispatcher） |
 | `cmd/distributor-linux` | Linux 分发器：session bus + dcore（`-tags dbus`） |
@@ -48,6 +48,6 @@ session bus 上调用 `org.unifiedpush.Distributor2.Register` 即可完成注册
 
 - `internal/boltstore`：与 `service.MemoryStore` 的语义对齐套件 + 重启持久性。
 - `internal/h2srv`：32 并发 h2 请求共享 1 条 TCP 的复用断言。
-- `dcore/transport`：sockopt getsockopt 白盒断言（Linux）。
+- `dcore/transport`：sockopt getsockopt 白盒断言（Linux），外加"默认 `Options{}` 经真实 dial 后落到 socket 上的取值"断言——keepalive 由 `net.Dialer` 在 `Control` 之后应用，只有走 dial 路径才看得见。
 - `test/integration`：S+D 全链路（真加密、投递失败重试、掉线清理、分发器重启续投、受限订阅只允许匹配的 VAPID 推送）。
 - `adapters/dbus`：dbus-run-session 下真总线端到端（注册/密文投递/注销/拒绝）。
