@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 )
 
 func newTestDistributor(t *testing.T) *Distributor {
@@ -92,5 +93,31 @@ func TestRestoreRules(t *testing.T) {
 func TestChangeKindString(t *testing.T) {
 	if Registered.String() != "registered" || Removed.String() != "removed" {
 		t.Errorf("ChangeKind strings = %q, %q", Registered, Removed)
+	}
+}
+
+func TestOptionsDefaults(t *testing.T) {
+	client, err := NewClient("http://127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	disp := DispatcherFunc(func(context.Context, string, []byte) error { return nil })
+
+	dist := NewDistributor(client, disp, Options{})
+	if got := dist.opts.PollRetryDelay; got != time.Second {
+		t.Errorf("PollRetryDelay = %v, want 1s", got)
+	}
+	if got := dist.opts.MaxPollRetryDelay; got != time.Minute {
+		t.Errorf("MaxPollRetryDelay = %v, want 1m", got)
+	}
+	if got := dist.opts.DeliverRetryDelay; got != 2*time.Second {
+		t.Errorf("DeliverRetryDelay = %v, want 2s", got)
+	}
+
+	// A base above the default cap would make the doubling meaningless;
+	// the cap follows the base.
+	dist = NewDistributor(client, disp, Options{PollRetryDelay: 5 * time.Minute})
+	if got := dist.opts.MaxPollRetryDelay; got != 5*time.Minute {
+		t.Errorf("MaxPollRetryDelay = %v, want it raised to the 5m base", got)
 	}
 }

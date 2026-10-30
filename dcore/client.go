@@ -9,6 +9,14 @@
 // This is distributor mode: push messages stay end-to-end encrypted by the
 // app's connector, the distributor relays the ciphertext unchanged and
 // holds no decryption keys.
+//
+// Cost per subscription, measured (BenchmarkDistributorScale, 2000
+// subscriptions on one connection): about 3.6 KiB of heap and one poll
+// goroutine. The 261-byte Registration is a small part of that; the rest is
+// HTTP/2 stream state and the goroutine's stack. The server's
+// h2srv.Options.MaxConcurrentStreams has to exceed the number of
+// subscriptions plus headroom for acks and subscription calls, otherwise
+// streams are refused and re-established.
 package dcore
 
 import (

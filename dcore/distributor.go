@@ -50,6 +50,11 @@ type Options struct {
 	OnChanged func(kind ChangeKind, reg Registration) error
 	// DeliverRetryDelay bounds the backoff between failed deliveries.
 	DeliverRetryDelay time.Duration
+	// PollRetryDelay is the first pause before retrying a failed poll, and
+	// MaxPollRetryDelay caps the doubling. Both are jittered. Defaults: 1s
+	// and 60s. A device that roams a lot benefits from a lower cap.
+	PollRetryDelay    time.Duration
+	MaxPollRetryDelay time.Duration
 }
 
 // Distributor manages Web Push subscriptions for many end user
@@ -72,6 +77,15 @@ func NewDistributor(client *Client, disp Dispatcher, opts Options) *Distributor 
 	}
 	if opts.DeliverRetryDelay == 0 {
 		opts.DeliverRetryDelay = 2 * time.Second
+	}
+	if opts.PollRetryDelay == 0 {
+		opts.PollRetryDelay = time.Second
+	}
+	if opts.MaxPollRetryDelay == 0 {
+		opts.MaxPollRetryDelay = time.Minute
+	}
+	if opts.MaxPollRetryDelay < opts.PollRetryDelay {
+		opts.MaxPollRetryDelay = opts.PollRetryDelay
 	}
 	return &Distributor{
 		client:  client,
@@ -268,7 +282,7 @@ func (d *Distributor) loop(ctx context.Context, web WebSubscription, token strin
 		delete(d.running, token)
 		d.mu.Unlock()
 	}()
-	backoff := time.Second
+	backoff := d.opts.PollRetryDelay
 	for ctx.Err() == nil {
 		res, err := d.client.Poll(ctx, &web)
 		if err != nil {
@@ -296,7 +310,7 @@ func (d *Distributor) loop(ctx context.Context, web WebSubscription, token strin
 			if !sleepCtx(ctx, jitter(backoff)) {
 				return
 			}
-			backoff = min(backoff*2, 60*time.Second)
+			backoff = min(backoff*2, d.opts.MaxPollRetryDelay)
 			continue
 		}
 		backoff = time.Second
