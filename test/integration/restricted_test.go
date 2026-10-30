@@ -21,7 +21,7 @@ import (
 // "vapid" argument) actually restricts the subscription: only the holder of
 // the matching VAPID key pair may push to the endpoint.
 func TestRestrictedRegistration(t *testing.T) {
-	base, _ := newServer(t)
+	base := newServer(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

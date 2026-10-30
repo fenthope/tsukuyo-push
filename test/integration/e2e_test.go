@@ -27,7 +27,6 @@ import (
 	"github.com/satomitoka/tsukuyo-push/dcore"
 	"github.com/satomitoka/tsukuyo-push/dcore/transport"
 	"github.com/satomitoka/tsukuyo-push/h2srv"
-	"github.com/satomitoka/tsukuyo-push/internal/boltstore"
 )
 
 // connector plays the end user application: it owns the UA key material
@@ -62,18 +61,14 @@ func (c *connector) Deliver(ctx context.Context, token string, body []byte) erro
 	return nil
 }
 
-func newServer(t *testing.T) (string, *boltstore.Store) {
+func newServer(t *testing.T) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := boltstore.Open(filepath.Join(t.TempDir(), "s.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	engine := touka.Default()
-	svc := service.New(service.WithStore(store))
+	svc := service.New(service.WithStore(service.NewMemoryStore()))
 	svc.Register(engine)
 	srv := h2srv.New(engine, h2srv.Options{})
 	go srv.Serve(ln)
@@ -81,9 +76,8 @@ func newServer(t *testing.T) (string, *boltstore.Store) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		srv.Close(ctx)
-		store.Close()
 	})
-	return "http://" + ln.Addr().String(), store
+	return "http://" + ln.Addr().String()
 }
 
 func silentLogger() *slog.Logger {
@@ -91,7 +85,7 @@ func silentLogger() *slog.Logger {
 }
 
 func TestUnifiedPushFlow(t *testing.T) {
-	base, store := newServer(t)
+	base := newServer(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -196,11 +190,10 @@ func TestUnifiedPushFlow(t *testing.T) {
 	if !errors.Is(err, sender.ErrSubscriptionNotFound) {
 		t.Fatalf("push after unregister = %v, want ErrSubscriptionNotFound", err)
 	}
-	_ = store
 }
 
 func TestRegistryRebuildAfterRestart(t *testing.T) {
-	base, _ := newServer(t)
+	base := newServer(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

@@ -26,7 +26,6 @@ import (
 	dbusadapter "github.com/satomitoka/tsukuyo-push/adapters/dbus"
 	"github.com/satomitoka/tsukuyo-push/dcore"
 	"github.com/satomitoka/tsukuyo-push/h2srv"
-	"github.com/satomitoka/tsukuyo-push/internal/boltstore"
 )
 
 // TestMain re-executes under dbus-run-session when no session bus exists,
@@ -97,10 +96,7 @@ func startPushServer(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := boltstore.Open(filepath.Join(t.TempDir(), "s.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := service.NewMemoryStore()
 	engine := touka.Default()
 	svc := service.New(service.WithStore(store))
 	svc.Register(engine)
@@ -110,7 +106,6 @@ func startPushServer(t *testing.T) string {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		srv.Close(ctx)
-		store.Close()
 	})
 	return "http://" + ln.Addr().String()
 }
