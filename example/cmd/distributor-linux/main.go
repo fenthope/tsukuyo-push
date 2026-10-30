@@ -9,7 +9,6 @@ import (
 	"flag"
 	"log"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -31,11 +30,11 @@ func main() {
 	flag.Parse()
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	rt, err := buildTransport(*url, *insecure)
-	if err != nil {
-		log.Fatalf("distributor-linux: transport: %v", err)
+	tOpts := transport.Options{}
+	if *insecure {
+		tOpts.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} //nolint:gosec // opt-in testing flag
 	}
-	client, err := dcore.NewClient(*url, dcore.WithTransport(rt))
+	client, err := dcore.NewClient(*url, dcore.WithTransportOptions(tOpts))
 	if err != nil {
 		log.Fatalf("distributor-linux: client: %v", err)
 	}
@@ -88,13 +87,4 @@ func (h *distributorHolder) Deliver(ctx context.Context, token string, body []by
 		return errors.New("distributor-linux: adapter not ready")
 	}
 	return h.adapter.Deliver(ctx, token, body)
-}
-
-func buildTransport(url string, insecure bool) (http.RoundTripper, error) {
-	opts := transport.Options{}
-	if len(url) >= 8 && url[:8] == "https://" {
-		opts.TLSClientConfig = &tls.Config{InsecureSkipVerify: insecure} //nolint:gosec // opt-in testing flag
-		return transport.New(opts)
-	}
-	return transport.NewH2C(opts)
 }

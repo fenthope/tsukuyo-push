@@ -45,30 +45,54 @@ type Client struct {
 }
 
 // ClientOption configures a Client.
-type ClientOption func(*Client)
+type ClientOption func(*clientConfig)
 
-// WithTransport replaces the HTTP transport (default: a single-connection
-// tuned transport from dcore/transport).
-func WithTransport(rt http.RoundTripper) ClientOption {
-	return func(c *Client) { c.http.Transport = rt }
+type clientConfig struct {
+	opts      transport.Options
+	transport http.RoundTripper
 }
 
-// NewClient creates a push server client for the service base URL.
+// WithTransportOptions tunes the single-connection transport built for this
+// client (socket options, HTTP/2 windows, ping timing). Ignored when
+// WithTransport supplies a transport outright.
+func WithTransportOptions(o transport.Options) ClientOption {
+	return func(c *clientConfig) { c.opts = o }
+}
+
+// WithTransport replaces the HTTP transport. The escape hatch for proxies,
+// tests and custom dialers; prefer WithTransportOptions otherwise.
+func WithTransport(rt http.RoundTripper) ClientOption {
+	return func(c *clientConfig) { c.transport = rt }
+}
+
+// NewClient creates a push server client for the service base URL. The
+// scheme picks the wire protocol: https uses TLS with HTTP/2 negotiated by
+// ALPN, anything else speaks prior-knowledge h2c (for local deployments and
+// TLS-terminating proxies).
 func NewClient(serviceURL string, opts ...ClientOption) (*Client, error) {
 	if serviceURL == "" {
 		return nil, errors.New("dcore: missing push service URL")
 	}
-	rt, err := transport.NewH2C(transport.Options{})
-	if err != nil {
-		return nil, err
+	var cfg clientConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+	rt := cfg.transport
+	if rt == nil {
+		var err error
+		if strings.HasPrefix(serviceURL, "https://") {
+			rt, err = transport.New(cfg.opts)
+		} else {
+			rt, err = transport.NewH2C(cfg.opts)
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	c := &Client{
 		// No client-wide timeout: long polls hold the stream open.
 		http: &http.Client{Transport: rt},
 		base: strings.TrimRight(serviceURL, "/"),
-	}
-	for _, o := range opts {
-		o(c)
 	}
 	return c, nil
 }
