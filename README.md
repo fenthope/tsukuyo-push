@@ -6,7 +6,7 @@ UnifiedPush 链路中 **S–D 段**的 Go 实现：推送服务器（S）与分�
 
 ```
 A 应用后端 ──upush/sender──▶ S 推送服务器 ══ h2c/TLS,1×TCP,N×流 ══▶ D 分发器 ──▶ C 端应用(连接器解密)
-                            cmd/server                        dcore + adapters
+                            service + h2srv                        dcore + platform/dbus
 ```
 
 加解密端到端由 C 的连接器完成；S 与 D 只搬运 RFC 8291 密文。
@@ -14,31 +14,42 @@ A 应用后端 ──upush/sender──▶ S 推送服务器 ══ h2c/TLS,1×T
 `service`/`pushmsg`，D 端不依赖 `receiver`（原因与回馈清单见
 [docs/upstream-gap.md](docs/upstream-gap.md)）。
 
-## 组件
+## 模块布局
 
-| 路径 | 说明 |
-| --- | --- |
-| `cmd/server` | S 端：touka + tsukasa-push service + bbolt 持久 Store + 调优 h2 监听 |
-| `internal/boltstore` | `service.Store` 的 bbolt 实现；未 ack 消息重启后重投（至少一次） |
-| `internal/h2srv` | stdlib `http.HTTP2Config` 服务端调优 + h2c + 监听套接字调优 |
-| `dcore` | D 核心：订阅管理、轮询监督、JSON 注册表；只转发密文，不持密钥 |
-| `dcore/transport` | 单连接客户端：`MaxConnsPerHost=1` + 套接字调优（默认只下发 TCP_NODELAY，keepalive/USER_TIMEOUT/缓冲按需开启）+ h2 空闲 PING（半开检测主力，20s+10s） |
-| `adapters/dbus` | **可选**（`-tags dbus`）：UnifiedPush D-Bus 规范 DBUS_0.3.0 分发器 |
-| `cmd/distributor` | 参考分发器二进制（日志型 dispatcher） |
-| `cmd/distributor-linux` | Linux 分发器：session bus + dcore（`-tags dbus`） |
+本仓库是**三个 Go 模块**（`go.work` 已提交，本地一起编译）：
+
+| 模块 | 内容 | 额外依赖 |
+| --- | --- | --- |
+| `.` = `github.com/satomitoka/tsukuyo-push` | **库**：`dcore`（D 核心：订阅管理、轮询监督、注册表）、`dcore/transport`（单连接调优客户端）、`h2srv`（S 端调优 HTTP/2 服务）。无 main，无存储 | 无 |
+| `./platform/dbus` | UnifiedPush D-Bus 规范 DBUS_0.3.0 分发器适配层，可嵌入 | godbus |
+| `./example` | 参考实现：`cmd/{server,distributor,distributor-linux}` 三个二进制 + `boltstore`（`service.Store` 的 bbolt 实现，未 ack 消息重启后重投＝至少一次） | bbolt |
+
+库模块的直接依赖只有 `tsukasa-push` 与 `x/sys`（`touka` 仅测试用到）；
+**bbolt 与 godbus 不会传染给 import 本库的人**。存储一律由调用方提供：S 端实
+现 `service.Store`，D 端交给 `dcore.Registry`。
+
+自己装配一个 S 端只要三行（`example/cmd/server` 就是这么写的）：
+
+```go
+engine := touka.Default()
+service.New(service.WithStore(myStore)).Register(engine)
+srv := h2srv.New(engine, h2srv.Options{MaxConcurrentStreams: 512})
+```
 
 ## 构建与运行
 
 ```bash
-go test ./...                        # 默认构建（无 dbus 依赖）
-go build -tags dbus ./... && dbus-run-session -- go test -tags dbus ./...   # 含 D-Bus 适配层
+go test ./...                      # 库模块（根目录；./... 不跨模块，需逐个跑）
+(cd example && go test ./...)      # 含 bbolt store 的语义对齐与重启持久性
+(cd platform/dbus && go test ./...)  # 够不到 session bus 时自动 skip
 
-# S 端
-go run ./cmd/server -addr :8443 -db up.db [-tls-cert a.pem -tls-key a.key]
-
+# S 端（example 模块）
+(cd example && go run ./cmd/server -addr :8443 -db up.db [-tls-cert a.pem -tls-key a.key])
 # Linux D 端（session bus 上暴露 org.unifiedpush.Distributor.tsukuyo）
-go run -tags dbus ./cmd/distributor-linux -url https://push.example -registry registry.json
+(cd example && go run ./cmd/distributor-linux -url https://push.example -registry registry.json)
 ```
+
+`-tags dbus` 不再需要：模块边界本身就是隔离，比构建标签更难用错。
 
 对第三方应用即插即用：任何实现 `org.unifiedpush.Connector2` 的应用在
 session bus 上调用 `org.unifiedpush.Distributor2.Register` 即可完成注册
@@ -46,8 +57,9 @@ session bus 上调用 `org.unifiedpush.Distributor2.Register` 即可完成注册
 
 ## 测试
 
-- `internal/boltstore`：与 `service.MemoryStore` 的语义对齐套件 + 重启持久性。
-- `internal/h2srv`：32 并发 h2 请求共享 1 条 TCP 的复用断言。
+- `example/boltstore`：与 `service.MemoryStore` 的语义对齐套件 + 重启持久性。
+- `h2srv`：32 并发 h2 请求共享 1 条 TCP 的复用断言。
 - `dcore/transport`：sockopt getsockopt 白盒断言（Linux），外加"默认 `Options{}` 经真实 dial 后落到 socket 上的取值"断言——keepalive 由 `net.Dialer` 在 `Control` 之后应用，只有走 dial 路径才看得见。
+- `dcore`：注册表基准与每订阅内存足迹（`go test -run '^$' -bench . ./dcore/`）。
 - `test/integration`：S+D 全链路（真加密、投递失败重试、掉线清理、分发器重启续投、受限订阅只允许匹配的 VAPID 推送）。
-- `adapters/dbus`：dbus-run-session 下真总线端到端（注册/密文投递/注销/拒绝）。
+- `platform/dbus`：真总线端到端（注册/密文投递/注销/拒绝）；够不到 session bus 时 skip。
