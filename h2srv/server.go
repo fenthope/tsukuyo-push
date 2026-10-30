@@ -22,25 +22,30 @@ type Options struct {
 	// HTTP/1.1. Without it the listener is plaintext (h2c + HTTP/1.1).
 	TLSConfig *tls.Config
 
-	// MaxConcurrentStreams bounds concurrent streams per connection. It
-	// must exceed the number of long-poll streams a distributor holds
-	// open plus headroom for its acks and subscriptions.
+	// MaxConcurrentStreams bounds concurrent streams per connection
+	// (default 512). It must exceed the number of long-poll streams a
+	// distributor holds open plus headroom for its acks and
+	// subscriptions, or streams get refused and re-established.
 	MaxConcurrentStreams int
 
 	// InitialStreamWindow and InitialConnWindow set the HTTP/2 receive
-	// flow control windows. Many concurrent blocked long-poll streams
-	// share the connection window, so it should be generous.
+	// flow control windows (default 256 KiB and 8 MiB). Many concurrent
+	// blocked long-poll streams share the connection window, so it should
+	// be generous.
 	InitialStreamWindow int
 	InitialConnWindow   int
 
 	// IdleTimeout is how long the server waits for any inbound frame
-	// before pinging the connection (half-open detection).
+	// before pinging the connection, the half-open detector for parked
+	// distributors (default 30s).
 	IdleTimeout time.Duration
 
-	// PingTimeout bounds the ping round trip of an idle probe.
+	// PingTimeout bounds the ping round trip of an idle probe (default
+	// 15s). Together with IdleTimeout, a dead peer costs this much to
+	// notice, and it should stay under the NAT lifetime you care about.
 	PingTimeout time.Duration
 
-	// ReadHeaderTimeout applies to the HTTP/1.1 path.
+	// ReadHeaderTimeout applies to the HTTP/1.1 path (default 10s).
 	ReadHeaderTimeout time.Duration
 }
 
@@ -114,7 +119,9 @@ func (s *Server) Close(ctx context.Context) error {
 	return s.http1.Shutdown(ctx)
 }
 
-// ListenerOptions tunes the TCP listener underneath.
+// ListenerOptions tunes the TCP listener underneath. Zero values leave the
+// socket to the kernel, whose autotuning is usually the right answer; set
+// these only when a measurement says otherwise.
 type ListenerOptions struct {
 	RecvBuf int // SO_RCVBUF
 	SendBuf int // SO_SNDBUF
@@ -126,13 +133,7 @@ func Listen(addr string, o ListenerOptions) (net.Listener, error) {
 		Control: func(_, _ string, c syscall.RawConn) error {
 			var serr error
 			err := c.Control(func(fd uintptr) {
-				iFD := int(fd)
-				if o.RecvBuf > 0 {
-					serr = errors.Join(serr, syscall.SetsockoptInt(iFD, syscall.SOL_SOCKET, syscall.SO_RCVBUF, o.RecvBuf))
-				}
-				if o.SendBuf > 0 {
-					serr = errors.Join(serr, syscall.SetsockoptInt(iFD, syscall.SOL_SOCKET, syscall.SO_SNDBUF, o.SendBuf))
-				}
+				serr = setBufferSizes(fd, o.RecvBuf, o.SendBuf)
 			})
 			return errors.Join(err, serr)
 		},
