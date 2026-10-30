@@ -17,6 +17,7 @@ import (
 
 	"github.com/satomitoka/tsukuyo-push/dcore"
 	"github.com/satomitoka/tsukuyo-push/dcore/transport"
+	"github.com/satomitoka/tsukuyo-push/example/filestore"
 	"github.com/satomitoka/tsukuyo-push/platform/dbus"
 )
 
@@ -38,9 +39,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("distributor-linux: client: %v", err)
 	}
-	reg, err := dcore.OpenRegistry(*registry)
+	store, err := filestore.Open(*registry)
 	if err != nil {
-		log.Fatalf("distributor-linux: registry: %v", err)
+		log.Fatalf("distributor-linux: store: %v", err)
 	}
 
 	conn, err := dbus.SessionBus()
@@ -48,23 +49,24 @@ func main() {
 		log.Fatalf("distributor-linux: session bus: %v", err)
 	}
 
-	d := &distributorHolder{}
-	dist := dcore.NewDistributor(client, reg, d, dcore.Options{
-		Logger: logger,
-		OnGone: func(reg dcore.Registration) {
-			if a := d.adapter; a != nil {
-				a.NotifyGone(reg)
-			}
-		},
-	})
-	adapter, err := dbusadapter.New(conn, reg, *name, logger)
+	// The adapter delivers messages and serves registrations, so the two
+	// reference each other. Building the adapter first and handing its
+	// Deliver method to the distributor keeps the wiring one-directional.
+	adapter, err := dbusadapter.New(conn, *name, logger)
 	if err != nil {
 		log.Fatalf("distributor-linux: adapter: %v", err)
 	}
-	d.adapter = adapter
+	dist := dcore.NewDistributor(client, dcore.DispatcherFunc(adapter.Deliver), dcore.Options{
+		Logger:    logger,
+		OnChanged: store.Apply,
+		OnGone:    adapter.NotifyGone,
+	})
 	adapter.Attach(dist)
 	if err := adapter.Serve(); err != nil {
 		log.Fatalf("distributor-linux: serve: %v", err)
+	}
+	if err := dist.Restore(store.Registrations()); err != nil {
+		log.Fatalf("distributor-linux: restore: %v", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -72,19 +74,4 @@ func main() {
 	if err := dist.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		log.Fatalf("distributor-linux: %v", err)
 	}
-}
-
-// distributorHolder breaks the construction cycle between the
-// distributor (needs a Dispatcher) and the adapter (needs the
-// distributor). Deliveries only start after Serve, by which time the
-// adapter field is set.
-type distributorHolder struct {
-	adapter *dbusadapter.Adapter
-}
-
-func (h *distributorHolder) Deliver(ctx context.Context, token string, body []byte) error {
-	if h.adapter == nil {
-		return errors.New("distributor-linux: adapter not ready")
-	}
-	return h.adapter.Deliver(ctx, token, body)
 }

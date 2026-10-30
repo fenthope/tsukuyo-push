@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -117,10 +116,6 @@ func TestDistributorDBusFlow(t *testing.T) {
 	}
 	base := startPushServer(t)
 
-	registry, err := dcore.OpenRegistry(filepath.Join(t.TempDir(), "registry.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	client, err := dcore.NewClient(base)
 	if err != nil {
 		t.Fatal(err)
@@ -137,12 +132,11 @@ func TestDistributorDBusFlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var dist *dcore.Distributor
-	adapter, err := dbusadapter.New(conn, registry, "test", silent())
+	adapter, err := dbusadapter.New(conn, "test", silent())
 	if err != nil {
 		t.Fatal(err)
 	}
-	dist = dcore.NewDistributor(client, registry, adapter, dcore.Options{
+	dist := dcore.NewDistributor(client, dcore.DispatcherFunc(adapter.Deliver), dcore.Options{
 		Logger: silent(),
 		OnGone: adapter.NotifyGone,
 	})

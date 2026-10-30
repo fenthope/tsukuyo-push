@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -35,11 +34,7 @@ func TestRestrictedRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err := dcore.OpenRegistry(filepath.Join(t.TempDir(), "registry.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dist := dcore.NewDistributor(client, registry, cn, dcore.Options{
+	dist := dcore.NewDistributor(client, cn, dcore.Options{
 		Logger: silentLogger(),
 	})
 	go dist.Run(ctx)

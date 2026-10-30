@@ -44,15 +44,14 @@ const (
 type Adapter struct {
 	conn *dbus.Conn
 	dist *dcore.Distributor
-	reg  *dcore.Registry
 	name string
 	log  *slog.Logger
 }
 
-// New creates the adapter. The distributor must be attached with Attach
-// before Serve: the distributor needs the adapter as its Dispatcher, and
-// the adapter needs the distributor for registration calls.
-func New(conn *dbus.Conn, registry *dcore.Registry, name string, log *slog.Logger) (*Adapter, error) {
+// New creates the adapter. Wire it up in this order: build the adapter,
+// hand adapter.Deliver to dcore.NewDistributor as a dcore.DispatcherFunc,
+// then Attach the distributor and Serve.
+func New(conn *dbus.Conn, name string, log *slog.Logger) (*Adapter, error) {
 	if name == "" {
 		name = DefaultName
 	}
@@ -63,14 +62,18 @@ func New(conn *dbus.Conn, registry *dcore.Registry, name string, log *slog.Logge
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Adapter{conn: conn, reg: registry, name: busName, log: log}, nil
+	return &Adapter{conn: conn, name: busName, log: log}, nil
 }
 
-// Attach links the distributor driven by this adapter.
+// Attach links the distributor driven by this adapter. It must be called
+// before Serve.
 func (a *Adapter) Attach(dist *dcore.Distributor) { a.dist = dist }
 
 // Serve exports the Distributor2 object and claims the bus name.
 func (a *Adapter) Serve() error {
+	if a.dist == nil {
+		return errors.New("dbusadapter: distributor not attached")
+	}
 	if err := a.conn.Export(&distributorAPI{a}, dbus.ObjectPath(DistributorPath), DistributorIface); err != nil {
 		return fmt.Errorf("dbusadapter: export: %w", err)
 	}
@@ -101,8 +104,8 @@ func (a *Adapter) NotifyGone(reg dcore.Registration) {
 // activation may wake the application; waiting for the method reply gives
 // at-least-once delivery into the connector before the push is acked.
 func (a *Adapter) Deliver(ctx context.Context, connectionToken string, body []byte) error {
-	reg := a.reg.Get(connectionToken)
-	if reg == nil || reg.Application == "" {
+	reg, ok := a.dist.Registration(connectionToken)
+	if !ok || reg.Application == "" {
 		return errors.New("dbusadapter: unknown connection token")
 	}
 	call := a.connectorObject(reg.Application).Call(
@@ -187,10 +190,7 @@ func (d distributorAPI) Unregister(args map[string]dbus.Variant) (map[string]dbu
 	if token == "" {
 		return map[string]dbus.Variant{}, nil
 	}
-	var app string
-	if reg := a.reg.Get(token); reg != nil {
-		app = reg.Application
-	}
+	app, _ := a.busNameFor(token)
 	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
 	defer cancel()
 	if err := a.dist.Unregister(ctx, token); err != nil {
@@ -203,6 +203,15 @@ func (d distributorAPI) Unregister(args map[string]dbus.Variant) (map[string]dbu
 		})
 	}
 	return map[string]dbus.Variant{}, nil
+}
+
+// busNameFor resolves a connection token to the application's bus name.
+func (a *Adapter) busNameFor(token string) (string, bool) {
+	reg, ok := a.dist.Registration(token)
+	if !ok {
+		return "", false
+	}
+	return reg.Application, reg.Application != ""
 }
 
 func lookup[T any](args map[string]dbus.Variant, key string) (T, bool) {

@@ -20,13 +20,15 @@ A 应用后端 ──upush/sender──▶ S 推送服务器 ══ h2c/TLS,1×T
 
 | 模块 | 内容 | 额外依赖 |
 | --- | --- | --- |
-| `.` = `github.com/satomitoka/tsukuyo-push` | **库**：`dcore`（D 核心：订阅管理、轮询监督、注册表）、`dcore/transport`（单连接调优客户端）、`h2srv`（S 端调优 HTTP/2 服务）。无 main，无存储 | 无 |
+| `.` = `github.com/satomitoka/tsukuyo-push` | **库**：`dcore`（D 核心：订阅管理、轮询监督、内存注册表）、`dcore/transport`（单连接调优客户端）、`h2srv`（S 端调优 HTTP/2 服务）。无 main，无存储 | 无 |
 | `./platform/dbus` | UnifiedPush D-Bus 规范 DBUS_0.3.0 分发器适配层，可嵌入 | godbus |
 | `./example` | 参考实现：`cmd/{server,distributor,distributor-linux}` 三个二进制 + `boltstore`（`service.Store` 的 bbolt 实现，未 ack 消息重启后重投＝至少一次） | bbolt |
 
 库模块的直接依赖只有 `tsukasa-push` 与 `x/sys`（`touka` 仅测试用到）；
-**bbolt 与 godbus 不会传染给 import 本库的人**。存储一律由调用方提供：S 端实
-现 `service.Store`，D 端交给 `dcore.Registry`。
+**bbolt 与 godbus 不会传染给 import 本库的人**。库自身不落盘：S 端的存储由调
+用方实现 `service.Store`；D 端把注册表放在内存里工作，变更通过
+`dcore.Options.OnChanged` 交出去、启动时用 `Distributor.Restore` 收回来（`OnChanged`
+失败会让 `Register` 失败，因此不会把重启后留不住端点发给应用）。
 
 自己装配一个 S 端只要三行（`example/cmd/server` 就是这么写的）：
 

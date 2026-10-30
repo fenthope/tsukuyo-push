@@ -24,6 +24,7 @@ import (
 
 	"github.com/satomitoka/tsukuyo-push/dcore"
 	"github.com/satomitoka/tsukuyo-push/dcore/transport"
+	"github.com/satomitoka/tsukuyo-push/example/filestore"
 )
 
 // logAdapter is the reference Dispatcher: it records deliveries. A real
@@ -55,16 +56,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("distributor: client: %v", err)
 	}
-	reg, err := dcore.OpenRegistry(*registry)
+	// The library keeps registrations in memory and reports every change;
+	// filestore is the application's half of the deal.
+	store, err := filestore.Open(*registry)
 	if err != nil {
-		log.Fatalf("distributor: registry: %v", err)
+		log.Fatalf("distributor: store: %v", err)
 	}
-	dist := dcore.NewDistributor(client, reg, logAdapter{logger}, dcore.Options{
-		Logger: logger,
+	dist := dcore.NewDistributor(client, logAdapter{logger}, dcore.Options{
+		Logger:    logger,
+		OnChanged: store.Apply,
 		OnGone: func(reg dcore.Registration) {
 			logger.Warn("endpoint gone, application must re-register", "token", reg.ConnectionToken)
 		},
 	})
+	if err := dist.Restore(store.Registrations()); err != nil {
+		log.Fatalf("distributor: restore: %v", err)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

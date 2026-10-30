@@ -11,7 +11,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -111,12 +110,10 @@ func TestUnifiedPushFlow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	registry, err := dcore.OpenRegistry(filepath.Join(t.TempDir(), "registry.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dist := dcore.NewDistributor(client, registry, cn, dcore.Options{
-		Logger: silentLogger(),
+	persist := newPersister()
+	dist := dcore.NewDistributor(client, cn, dcore.Options{
+		Logger:    silentLogger(),
+		OnChanged: persist.apply,
 	})
 	go dist.Run(ctx)
 
@@ -124,6 +121,9 @@ func TestUnifiedPushFlow(t *testing.T) {
 	endpoint, err := dist.Register(ctx, "tok-1", "org.example.app", "test app", "")
 	if err != nil {
 		t.Fatalf("register: %v", err)
+	}
+	if !persist.has("tok-1") {
+		t.Fatal("registration was not reported to the application's store")
 	}
 
 	// The application server pushes through the upush wire format.
@@ -190,6 +190,9 @@ func TestUnifiedPushFlow(t *testing.T) {
 	if !errors.Is(err, sender.ErrSubscriptionNotFound) {
 		t.Fatalf("push after unregister = %v, want ErrSubscriptionNotFound", err)
 	}
+	if persist.has("tok-1") {
+		t.Error("unregistration was not reported to the application's store")
+	}
 }
 
 func TestRegistryRebuildAfterRestart(t *testing.T) {
@@ -199,20 +202,21 @@ func TestRegistryRebuildAfterRestart(t *testing.T) {
 
 	keys, _ := pushmsg.GenerateUAKeys()
 	cn := &connector{t: t, keys: keys, delivered: make(chan []byte, 4)}
-	registryPath := filepath.Join(t.TempDir(), "registry.json")
+	persist := newPersister()
 
 	newDist := func() *dcore.Distributor {
 		client, err := dcore.NewClient(base)
 		if err != nil {
 			t.Fatal(err)
 		}
-		registry, err := dcore.OpenRegistry(registryPath)
-		if err != nil {
+		dist := dcore.NewDistributor(client, cn, dcore.Options{
+			Logger:    silentLogger(),
+			OnChanged: persist.apply,
+		})
+		if err := dist.Restore(persist.all()); err != nil {
 			t.Fatal(err)
 		}
-		return dcore.NewDistributor(client, registry, cn, dcore.Options{
-			Logger: silentLogger(),
-		})
+		return dist
 	}
 
 	dist := newDist()
